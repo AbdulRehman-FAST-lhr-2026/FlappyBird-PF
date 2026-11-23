@@ -1,9 +1,14 @@
 #include <SFML/Graphics.hpp>
-#include <optional>
+#include <SFML/Audio.hpp>
+#include <fstream>
+#include <string>
+
+using namespace std;
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode({480u, 720u}), "Flappy Bird - PF Project");
+    // --- [ABDULREHMAN] Window & Ground Base Setup ---
+    sf::RenderWindow window(sf::VideoMode({480u, 720u}), "Flappy Bird - PF Final Project");
     window.setFramerateLimit(60);
 
     sf::Color skyBlue(135, 206, 235);
@@ -13,7 +18,7 @@ int main()
     floor.setFillColor(sf::Color(34, 139, 34));
     floor.setPosition({0.0f, 620.0f});
 
-    // --- Pipes Setup (AbdulRehman's Part) ---
+    // --- [ABDULREHMAN] Pipe Obstacles Setup ---
     const int MAX_PIPES = 6;
     sf::RectangleShape topPipes[MAX_PIPES];
     sf::RectangleShape bottomPipes[MAX_PIPES];
@@ -21,7 +26,7 @@ int main()
     float pipeTopHeight[MAX_PIPES];
     const float gapSize = 170.0f;
     const float pipeWidth = 60.0f;
-    const float pipeSpeed = 2.0f;
+    float pipeSpeed = 2.0f; // [WAQAR ALI] Non-const so speed increases with score
 
     for (int i = 0; i < MAX_PIPES; i++)
     {
@@ -39,10 +44,8 @@ int main()
     }
 
     // =========================================================================
-    // WAQAR ALI'S CONTRIBUTION: BACKGROUND CLOUDS & BIRD SHAPE / PHYSICS
+    // [WAQAR ALI - PART 1] Background Clouds Setup (1D Arrays & CircleShapes)
     // =========================================================================
-
-    // 1. Background Clouds Setup (Using 1D Arrays)
     const int MAX_CLOUDS = 4;
     sf::CircleShape cloudLeft[MAX_CLOUDS];
     sf::CircleShape cloudMid[MAX_CLOUDS];
@@ -63,18 +66,35 @@ int main()
         cloudRight[i].setFillColor(sf::Color(255, 255, 255, 225));
     }
 
-    // 2. Bird Shape Setup (Body, Wing, Eye, Pupil & Beak)
+    // =========================================================================
+    // [WAQAR ALI - PART 2] Ground Scrolling Grass Stripes Setup
+    // =========================================================================
+    const int MAX_STRIPES = 14;
+    sf::RectangleShape groundStripes[MAX_STRIPES];
+    float stripeX[MAX_STRIPES];
+    for (int i = 0; i < MAX_STRIPES; i++)
+    {
+        stripeX[i] = i * 40.0f;
+        groundStripes[i].setSize({20.0f, 14.0f});
+        groundStripes[i].setFillColor(sf::Color(55, 185, 55));
+        groundStripes[i].setPosition({stripeX[i], 620.0f});
+    }
+
+    // =========================================================================
+    // [WAQAR ALI - PART 3] Composite Bird Shape, Physics & Wing Animation Setup
+    // =========================================================================
     float birdX = 110.0f;
     float birdY = 280.0f;
     float birdVelocity = 0.0f;
+    float wingOffsetY = 13.0f;
     const float gravity = 0.45f;
     const float jumpStrength = -7.5f;
 
     sf::CircleShape birdBody(18.0f);
-    birdBody.setFillColor(sf::Color(255, 215, 0)); // Yellow body
+    birdBody.setFillColor(sf::Color(255, 215, 0));
 
     sf::CircleShape birdWing(8.5f);
-    birdWing.setFillColor(sf::Color(230, 150, 0)); // Orange-gold wing
+    birdWing.setFillColor(sf::Color(230, 150, 0));
 
     sf::CircleShape birdEye(4.5f);
     birdEye.setFillColor(sf::Color::White);
@@ -87,45 +107,124 @@ int main()
     birdBeak.setPoint(0, {0.0f, 0.0f});
     birdBeak.setPoint(1, {12.0f, 5.0f});
     birdBeak.setPoint(2, {0.0f, 10.0f});
-    birdBeak.setFillColor(sf::Color(255, 85, 0)); // Orange beak
+    birdBeak.setFillColor(sf::Color(255, 85, 0));
 
     // =========================================================================
+    // [WAQAR ALI - PART 4] Score & High Score File Handling (highscore.txt)
+    // =========================================================================
+    int score = 0;
+    int highScore = 0;
+    bool pipePassed[MAX_PIPES] = {false, false, false, false, false, false};
 
+    ifstream inFile("highscore.txt");
+    if (inFile.is_open())
+    {
+        inFile >> highScore;
+        inFile.close();
+    }
+
+    sf::Font font;
+    if (!font.openFromFile("arial.ttf"))
+    {
+        return -1;
+    }
+
+    sf::Text scoreText(font, "Score: 0", 26);
+    scoreText.setFillColor(sf::Color::White);
+    scoreText.setOutlineColor(sf::Color::Black);
+    scoreText.setOutlineThickness(2.0f);
+    scoreText.setPosition({18.0f, 15.0f});
+
+    sf::Text highScoreText(font, "Best: " + to_string(highScore), 26);
+    highScoreText.setFillColor(sf::Color(255, 230, 80));
+    highScoreText.setOutlineColor(sf::Color::Black);
+    highScoreText.setOutlineThickness(2.0f);
+    highScoreText.setPosition({335.0f, 15.0f});
+
+    // =========================================================================
+    // [WAQAR ALI - PART 5] SFML Audio Sound Effects Setup
+    // =========================================================================
+    sf::SoundBuffer jumpBuffer, scoreBuffer, hitBuffer;
+    if (!jumpBuffer.loadFromFile("jump.wav") ||
+        !scoreBuffer.loadFromFile("score.wav") ||
+        !hitBuffer.loadFromFile("hit.wav"))
+    {
+        return -1;
+    }
+
+    sf::Sound jumpSound(jumpBuffer);
+    sf::Sound scoreSound(scoreBuffer);
+    sf::Sound hitSound(hitBuffer); // [ABDULREHMAN] Call hitSound.play() on pipe/floor collision
+
+    // =========================================================================
+    // MAIN GAME LOOP
+    // =========================================================================
     while (window.isOpen())
     {
-        while (const std::optional<sf::Event> event = window.pollEvent())
+        while (const auto event = window.pollEvent())
         {
             if (event->is<sf::Event::Closed>())
             {
                 window.close();
             }
 
-            // Waqar's Part: Spacebar ya Up Arrow dabane par Bird jump karegi
+            // --- [WAQAR ALI] Bird Jump Controls, Wing Flap & Jump Sound ---
             if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
             {
                 if (keyPressed->code == sf::Keyboard::Key::Space ||
                     keyPressed->code == sf::Keyboard::Key::Up)
                 {
                     birdVelocity = jumpStrength;
+                    wingOffsetY = 6.0f;
+                    jumpSound.play();
                 }
             }
         }
 
-        // --- Pipes Movement Update ---
+        // --- [ABDULREHMAN] Pipes Movement ---
         for (int i = 0; i < MAX_PIPES; i++)
         {
             pipeX[i] -= pipeSpeed;
 
+            // --- [WAQAR ALI - PART 6] Score, Progressive Speed & highscore.txt Saving ---
+            if (!pipePassed[i] && pipeX[i] + pipeWidth < birdX)
+            {
+                pipePassed[i] = true;
+                score++;
+                scoreSound.play();
+
+                // Gradually increase difficulty as score increases (max cap: 5.5f)
+                if (pipeSpeed < 5.5f)
+                {
+                    pipeSpeed += 0.12f;
+                }
+
+                if (score > highScore)
+                {
+                    highScore = score;
+                    ofstream outFile("highscore.txt");
+                    if (outFile.is_open())
+                    {
+                        outFile << highScore;
+                        outFile.close();
+                    }
+                }
+
+                scoreText.setString("Score: " + to_string(score));
+                highScoreText.setString("Best: " + to_string(highScore));
+            }
+
             if (pipeX[i] < -pipeWidth)
             {
                 pipeX[i] = 500.0f + (MAX_PIPES - 1) * 180.0f;
+                pipePassed[i] = false; // [WAQAR ALI] Reset score flag when pipe recycles
             }
 
             topPipes[i].setPosition({pipeX[i], 0.0f});
             bottomPipes[i].setPosition({pipeX[i], pipeTopHeight[i] + gapSize});
         }
 
-        // --- Waqar's Part: Background Clouds Movement Update ---
+        // --- [WAQAR ALI] Background Clouds Scrolling Logic ---
         for (int i = 0; i < MAX_CLOUDS; i++)
         {
             cloudX[i] -= cloudSpeed;
@@ -139,11 +238,26 @@ int main()
             cloudRight[i].setPosition({cloudX[i] + 38.0f, cloudY[i] + 8.0f});
         }
 
-        // --- Waqar's Part: Bird Gravity & Position Update ---
+        // --- [WAQAR ALI] Ground Grass Stripes Scrolling Logic ---
+        for (int i = 0; i < MAX_STRIPES; i++)
+        {
+            stripeX[i] -= pipeSpeed;
+            if (stripeX[i] < -40.0f)
+            {
+                stripeX[i] += MAX_STRIPES * 40.0f;
+            }
+            groundStripes[i].setPosition({stripeX[i], 620.0f});
+        }
+
+        // --- [WAQAR ALI] Bird Gravity, Boundaries & Wing Animation ---
         birdVelocity += gravity;
         birdY += birdVelocity;
 
-        // Screen ke top aur floor se bahar jane se rokna
+        if (wingOffsetY < 14.0f)
+        {
+            wingOffsetY += 0.4f;
+        }
+
         if (birdY < 0.0f)
         {
             birdY = 0.0f;
@@ -156,15 +270,19 @@ int main()
         }
 
         birdBody.setPosition({birdX, birdY});
-        birdWing.setPosition({birdX + 5.0f, birdY + 13.0f});
+        birdWing.setPosition({birdX + 5.0f, birdY + wingOffsetY});
         birdEye.setPosition({birdX + 22.0f, birdY + 6.0f});
         birdPupil.setPosition({birdX + 25.0f, birdY + 7.5f});
         birdBeak.setPosition({birdX + 33.0f, birdY + 13.0f});
 
-        // --- Drawing Everything ---
+        // --- [ABDULREHMAN'S REMAINING PART] Add Random Pipe Heights, Collision & Game Over Here ---
+
+        // =====================================================================
+        // RENDERING / DRAWING
+        // =====================================================================
         window.clear(skyBlue);
 
-        // Pehle clouds draw honge taake pipes ke peeche rahein
+        // [WAQAR ALI] Draw Background Clouds
         for (int i = 0; i < MAX_CLOUDS; i++)
         {
             window.draw(cloudLeft[i]);
@@ -172,20 +290,30 @@ int main()
             window.draw(cloudRight[i]);
         }
 
+        // [ABDULREHMAN] Draw Pipes & Base Floor
         for (int i = 0; i < MAX_PIPES; i++)
         {
             window.draw(topPipes[i]);
             window.draw(bottomPipes[i]);
         }
-
         window.draw(floor);
 
-        // Bird ke saare parts draw karna
+        // [WAQAR ALI] Draw Ground Grass Stripes
+        for (int i = 0; i < MAX_STRIPES; i++)
+        {
+            window.draw(groundStripes[i]);
+        }
+
+        // [WAQAR ALI] Draw Composite Bird (5 Parts)
         window.draw(birdBody);
         window.draw(birdWing);
         window.draw(birdEye);
         window.draw(birdPupil);
         window.draw(birdBeak);
+
+        // [WAQAR ALI] Draw Live Score & High Score UI
+        window.draw(scoreText);
+        window.draw(highScoreText);
 
         window.display();
     }
