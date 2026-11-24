@@ -141,6 +141,22 @@ int main()
     highScoreText.setOutlineThickness(2.0f);
     highScoreText.setPosition({335.0f, 15.0f});
 
+    // --- [ABDULREHMAN] Game State, Frame Counter & UI Messages ---
+    int frameCount = 0;
+    int gameState = 0; // 0 = Start Screen, 1 = Playing, 2 = Game Over
+
+    sf::Text startText(font, "Press SPACE to Start", 34);
+    startText.setFillColor(sf::Color::White);
+    startText.setOutlineColor(sf::Color::Black);
+    startText.setOutlineThickness(2.0f);
+    startText.setPosition({70.0f, 300.0f});
+
+    sf::Text gameOverText(font, "Game Over!\nPress R to Restart", 34);
+    gameOverText.setFillColor(sf::Color::White);
+    gameOverText.setOutlineColor(sf::Color::Black);
+    gameOverText.setOutlineThickness(2.0f);
+    gameOverText.setPosition({70.0f, 260.0f});
+
     // =========================================================================
     // [WAQAR ALI - PART 5] SFML Audio Sound Effects Setup
     // =========================================================================
@@ -161,6 +177,9 @@ int main()
     // =========================================================================
     while (window.isOpen())
     {
+        // --- [ABDULREHMAN] Frame counter for random pipe heights ---
+        frameCount++;
+
         while (const auto event = window.pollEvent())
         {
             if (event->is<sf::Event::Closed>())
@@ -179,49 +198,86 @@ int main()
                     jumpSound.play();
                 }
             }
+
+            // --- [ABDULREHMAN] Game state input (Start / Restart) ---
+            if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+            {
+                if (gameState == 0 && keyPressed->code == sf::Keyboard::Key::Space)
+                {
+                    gameState = 1;
+                }
+
+                if (gameState == 2 && keyPressed->code == sf::Keyboard::Key::R)
+                {
+                    score = 0;
+                    pipeSpeed = 2.0f;
+                    birdY = 280.0f;
+                    birdVelocity = 0.0f;
+                    wingOffsetY = 13.0f;
+
+                    for (int i = 0; i < MAX_PIPES; i++)
+                    {
+                        pipePassed[i] = false;
+                        pipeX[i] = 500.0f + i * 180.0f;
+                        topPipes[i].setPosition({pipeX[i], 0.0f});
+                        bottomPipes[i].setPosition({pipeX[i], pipeTopHeight[i] + gapSize});
+                    }
+
+                    scoreText.setString("Score: 0");
+                    gameState = 0;
+                }
+            }
         }
 
         // --- [ABDULREHMAN] Pipes Movement ---
-        for (int i = 0; i < MAX_PIPES; i++)
+        if (gameState == 1)
         {
-            pipeX[i] -= pipeSpeed;
-
-            // --- [WAQAR ALI - PART 6] Score, Progressive Speed & highscore.txt Saving ---
-            if (!pipePassed[i] && pipeX[i] + pipeWidth < birdX)
+            for (int i = 0; i < MAX_PIPES; i++)
             {
-                pipePassed[i] = true;
-                score++;
-                scoreSound.play();
+                pipeX[i] -= pipeSpeed;
 
-                // Gradually increase difficulty as score increases (max cap: 5.5f)
-                if (pipeSpeed < 5.5f)
+                // --- [WAQAR ALI - PART 6] Score, Progressive Speed & highscore.txt Saving ---
+                if (!pipePassed[i] && pipeX[i] + pipeWidth < birdX)
                 {
-                    pipeSpeed += 0.12f;
-                }
+                    pipePassed[i] = true;
+                    score++;
+                    scoreSound.play();
 
-                if (score > highScore)
-                {
-                    highScore = score;
-                    ofstream outFile("highscore.txt");
-                    if (outFile.is_open())
+                    // Gradually increase difficulty as score increases (max cap: 5.5f)
+                    if (pipeSpeed < 5.5f)
                     {
-                        outFile << highScore;
-                        outFile.close();
+                        pipeSpeed += 0.12f;
                     }
+
+                    if (score > highScore)
+                    {
+                        highScore = score;
+                        ofstream outFile("highscore.txt");
+                        if (outFile.is_open())
+                        {
+                            outFile << highScore;
+                            outFile.close();
+                        }
+                    }
+
+                    scoreText.setString("Score: " + to_string(score));
+                    highScoreText.setString("Best: " + to_string(highScore));
                 }
 
-                scoreText.setString("Score: " + to_string(score));
-                highScoreText.setString("Best: " + to_string(highScore));
-            }
+                if (pipeX[i] < -pipeWidth)
+                {
+                    pipeX[i] = 500.0f + (MAX_PIPES - 1) * 180.0f;
+                    // --- [ABDULREHMAN] Random pipe heights on recycle (no <cstdlib>/<ctime>) ---
+                    pipeTopHeight[i] = 90.0f + static_cast<float>((frameCount * 37 + i * 73) % 240);
+                    float newBottomHeight = 720.0f - 100.0f - pipeTopHeight[i] - gapSize;
+                    topPipes[i].setSize({pipeWidth, pipeTopHeight[i]});
+                    bottomPipes[i].setSize({pipeWidth, newBottomHeight});
+                    pipePassed[i] = false; // [WAQAR ALI] Reset score flag when pipe recycles
+                }
 
-            if (pipeX[i] < -pipeWidth)
-            {
-                pipeX[i] = 500.0f + (MAX_PIPES - 1) * 180.0f;
-                pipePassed[i] = false; // [WAQAR ALI] Reset score flag when pipe recycles
+                topPipes[i].setPosition({pipeX[i], 0.0f});
+                bottomPipes[i].setPosition({pipeX[i], pipeTopHeight[i] + gapSize});
             }
-
-            topPipes[i].setPosition({pipeX[i], 0.0f});
-            bottomPipes[i].setPosition({pipeX[i], pipeTopHeight[i] + gapSize});
         }
 
         // --- [WAQAR ALI] Background Clouds Scrolling Logic ---
@@ -275,7 +331,48 @@ int main()
         birdPupil.setPosition({birdX + 25.0f, birdY + 7.5f});
         birdBeak.setPosition({birdX + 33.0f, birdY + 13.0f});
 
-        // --- [ABDULREHMAN'S REMAINING PART] Add Random Pipe Heights, Collision & Game Over Here ---
+        // --- [ABDULREHMAN'S REMAINING PART] Collision, State Handling & UI ---
+        if (gameState == 0)
+        {
+            birdY = 280.0f;
+            birdVelocity = 0.0f;
+            wingOffsetY = 13.0f;
+
+            birdBody.setPosition({birdX, birdY});
+            birdWing.setPosition({birdX + 5.0f, birdY + wingOffsetY});
+            birdEye.setPosition({birdX + 22.0f, birdY + 6.0f});
+            birdPupil.setPosition({birdX + 25.0f, birdY + 7.5f});
+            birdBeak.setPosition({birdX + 33.0f, birdY + 13.0f});
+        }
+        else if (gameState == 1)
+        {
+            bool collided = false;
+
+            if (birdY >= 620.0f - 36.0f)
+            {
+                collided = true;
+            }
+
+            for (int i = 0; i < MAX_PIPES; i++)
+            {
+                if (birdBody.getGlobalBounds().findIntersection(topPipes[i].getGlobalBounds()) ||
+                    birdBody.getGlobalBounds().findIntersection(bottomPipes[i].getGlobalBounds()))
+                {
+                    collided = true;
+                    break;
+                }
+            }
+
+            if (collided)
+            {
+                hitSound.play();
+                gameState = 2;
+            }
+        }
+        else if (gameState == 2)
+        {
+            birdVelocity = 0.0f;
+        }
 
         // =====================================================================
         // RENDERING / DRAWING
@@ -314,6 +411,16 @@ int main()
         // [WAQAR ALI] Draw Live Score & High Score UI
         window.draw(scoreText);
         window.draw(highScoreText);
+
+        // --- [ABDULREHMAN] Draw start/game-over messages ---
+        if (gameState == 0)
+        {
+            window.draw(startText);
+        }
+        else if (gameState == 2)
+        {
+            window.draw(gameOverText);
+        }
 
         window.display();
     }
