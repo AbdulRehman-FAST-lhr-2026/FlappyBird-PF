@@ -7,7 +7,6 @@ using namespace std;
 
 int main()
 {
-    // --- [ABDULREHMAN] Window & Ground Base Setup ---
     sf::RenderWindow window(sf::VideoMode({480u, 720u}), "Flappy Bird - PF Final Project");
     window.setFramerateLimit(60);
 
@@ -18,7 +17,6 @@ int main()
     floor.setFillColor(sf::Color(34, 139, 34));
     floor.setPosition({0.0f, 620.0f});
 
-    // --- [ABDULREHMAN] Pipe Obstacles Setup ---
     const int MAX_PIPES = 6;
     sf::RectangleShape topPipes[MAX_PIPES];
     sf::RectangleShape bottomPipes[MAX_PIPES];
@@ -26,7 +24,7 @@ int main()
     float pipeTopHeight[MAX_PIPES];
     const float gapSize = 170.0f;
     const float pipeWidth = 60.0f;
-    float pipeSpeed = 2.0f; // [WAQAR ALI] Non-const so speed increases with score
+    float pipeSpeed = 2.0f;
 
     for (int i = 0; i < MAX_PIPES; i++)
     {
@@ -43,9 +41,6 @@ int main()
         bottomPipes[i].setPosition({pipeX[i], pipeTopHeight[i] + gapSize});
     }
 
-    // =========================================================================
-    // [WAQAR ALI - PART 1] Background Clouds Setup (1D Arrays & CircleShapes)
-    // =========================================================================
     const int MAX_CLOUDS = 4;
     sf::CircleShape cloudLeft[MAX_CLOUDS];
     sf::CircleShape cloudMid[MAX_CLOUDS];
@@ -66,9 +61,6 @@ int main()
         cloudRight[i].setFillColor(sf::Color(255, 255, 255, 225));
     }
 
-    // =========================================================================
-    // [WAQAR ALI - PART 2] Ground Scrolling Grass Stripes Setup
-    // =========================================================================
     const int MAX_STRIPES = 14;
     sf::RectangleShape groundStripes[MAX_STRIPES];
     float stripeX[MAX_STRIPES];
@@ -80,9 +72,6 @@ int main()
         groundStripes[i].setPosition({stripeX[i], 620.0f});
     }
 
-    // =========================================================================
-    // [WAQAR ALI - PART 3] Composite Bird Shape, Physics & Wing Animation Setup
-    // =========================================================================
     float birdX = 110.0f;
     float birdY = 280.0f;
     float birdVelocity = 0.0f;
@@ -109,9 +98,6 @@ int main()
     birdBeak.setPoint(2, {0.0f, 10.0f});
     birdBeak.setFillColor(sf::Color(255, 85, 0));
 
-    // =========================================================================
-    // [WAQAR ALI - PART 4] Score & High Score File Handling (highscore.txt)
-    // =========================================================================
     int score = 0;
     int highScore = 0;
     bool pipePassed[MAX_PIPES] = {false, false, false, false, false, false};
@@ -141,9 +127,8 @@ int main()
     highScoreText.setOutlineThickness(2.0f);
     highScoreText.setPosition({335.0f, 15.0f});
 
-    // --- [ABDULREHMAN] Game State, Frame Counter & UI Messages ---
     int frameCount = 0;
-    int gameState = 0; // 0 = Start Screen, 1 = Playing, 2 = Game Over
+    int gameState = 0;
 
     sf::Text startText(font, "Press SPACE to Start", 34);
     startText.setFillColor(sf::Color::White);
@@ -157,9 +142,6 @@ int main()
     gameOverText.setOutlineThickness(2.0f);
     gameOverText.setPosition({70.0f, 260.0f});
 
-    // =========================================================================
-    // [WAQAR ALI - PART 5] SFML Audio Sound Effects Setup
-    // =========================================================================
     sf::SoundBuffer jumpBuffer, scoreBuffer, hitBuffer;
     if (!jumpBuffer.loadFromFile("jump.wav") ||
         !scoreBuffer.loadFromFile("score.wav") ||
@@ -170,14 +152,10 @@ int main()
 
     sf::Sound jumpSound(jumpBuffer);
     sf::Sound scoreSound(scoreBuffer);
-    sf::Sound hitSound(hitBuffer); // [ABDULREHMAN] Call hitSound.play() on pipe/floor collision
+    sf::Sound hitSound(hitBuffer);
 
-    // =========================================================================
-    // MAIN GAME LOOP
-    // =========================================================================
     while (window.isOpen())
     {
-        // --- [ABDULREHMAN] Frame counter for random pipe heights ---
         frameCount++;
 
         while (const auto event = window.pollEvent())
@@ -187,7 +165,6 @@ int main()
                 window.close();
             }
 
-            // --- [WAQAR ALI] Bird Jump Controls, Wing Flap & Jump Sound ---
             if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
             {
                 if (keyPressed->code == sf::Keyboard::Key::Space ||
@@ -199,7 +176,6 @@ int main()
                 }
             }
 
-            // --- [ABDULREHMAN] Game state input (Start / Restart) ---
             if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
             {
                 if (gameState == 0 && keyPressed->code == sf::Keyboard::Key::Space)
@@ -229,21 +205,18 @@ int main()
             }
         }
 
-        // --- [ABDULREHMAN] Pipes Movement ---
         if (gameState == 1)
         {
             for (int i = 0; i < MAX_PIPES; i++)
             {
                 pipeX[i] -= pipeSpeed;
 
-                // --- [WAQAR ALI - PART 6] Score, Progressive Speed & highscore.txt Saving ---
                 if (!pipePassed[i] && pipeX[i] + pipeWidth < birdX)
                 {
                     pipePassed[i] = true;
                     score++;
                     scoreSound.play();
 
-                    // Gradually increase difficulty as score increases (max cap: 5.5f)
                     if (pipeSpeed < 5.5f)
                     {
                         pipeSpeed += 0.12f;
@@ -267,12 +240,11 @@ int main()
                 if (pipeX[i] < -pipeWidth)
                 {
                     pipeX[i] = 500.0f + (MAX_PIPES - 1) * 180.0f;
-                    // --- [ABDULREHMAN] Random pipe heights on recycle (no <cstdlib>/<ctime>) ---
                     pipeTopHeight[i] = 90.0f + static_cast<float>((frameCount * 37 + i * 73) % 240);
                     float newBottomHeight = 720.0f - 100.0f - pipeTopHeight[i] - gapSize;
                     topPipes[i].setSize({pipeWidth, pipeTopHeight[i]});
                     bottomPipes[i].setSize({pipeWidth, newBottomHeight});
-                    pipePassed[i] = false; // [WAQAR ALI] Reset score flag when pipe recycles
+                    pipePassed[i] = false;
                 }
 
                 topPipes[i].setPosition({pipeX[i], 0.0f});
@@ -280,7 +252,6 @@ int main()
             }
         }
 
-        // --- [WAQAR ALI] Background Clouds Scrolling Logic ---
         for (int i = 0; i < MAX_CLOUDS; i++)
         {
             cloudX[i] -= cloudSpeed;
@@ -294,7 +265,6 @@ int main()
             cloudRight[i].setPosition({cloudX[i] + 38.0f, cloudY[i] + 8.0f});
         }
 
-        // --- [WAQAR ALI] Ground Grass Stripes Scrolling Logic ---
         for (int i = 0; i < MAX_STRIPES; i++)
         {
             stripeX[i] -= pipeSpeed;
@@ -305,7 +275,6 @@ int main()
             groundStripes[i].setPosition({stripeX[i], 620.0f});
         }
 
-        // --- [WAQAR ALI] Bird Gravity, Boundaries & Wing Animation ---
         birdVelocity += gravity;
         birdY += birdVelocity;
 
@@ -331,7 +300,6 @@ int main()
         birdPupil.setPosition({birdX + 25.0f, birdY + 7.5f});
         birdBeak.setPosition({birdX + 33.0f, birdY + 13.0f});
 
-        // --- [ABDULREHMAN'S REMAINING PART] Collision, State Handling & UI ---
         if (gameState == 0)
         {
             birdY = 280.0f;
@@ -374,12 +342,8 @@ int main()
             birdVelocity = 0.0f;
         }
 
-        // =====================================================================
-        // RENDERING / DRAWING
-        // =====================================================================
         window.clear(skyBlue);
 
-        // [WAQAR ALI] Draw Background Clouds
         for (int i = 0; i < MAX_CLOUDS; i++)
         {
             window.draw(cloudLeft[i]);
@@ -387,7 +351,6 @@ int main()
             window.draw(cloudRight[i]);
         }
 
-        // [ABDULREHMAN] Draw Pipes & Base Floor
         for (int i = 0; i < MAX_PIPES; i++)
         {
             window.draw(topPipes[i]);
@@ -395,24 +358,20 @@ int main()
         }
         window.draw(floor);
 
-        // [WAQAR ALI] Draw Ground Grass Stripes
         for (int i = 0; i < MAX_STRIPES; i++)
         {
             window.draw(groundStripes[i]);
         }
 
-        // [WAQAR ALI] Draw Composite Bird (5 Parts)
         window.draw(birdBody);
         window.draw(birdWing);
         window.draw(birdEye);
         window.draw(birdPupil);
         window.draw(birdBeak);
 
-        // [WAQAR ALI] Draw Live Score & High Score UI
         window.draw(scoreText);
         window.draw(highScoreText);
 
-        // --- [ABDULREHMAN] Draw start/game-over messages ---
         if (gameState == 0)
         {
             window.draw(startText);
